@@ -24,6 +24,8 @@ import cn.hutool.core.util.StrUtil;
 import com.xkcoding.http.config.HttpConfig;
 import com.xkcoding.justauth.autoconfigure.ExtendProperties;
 import com.xkcoding.justauth.autoconfigure.JustAuthProperties;
+import com.xkcoding.justauth.enums.AuthCustomSource;
+import com.xkcoding.justauth.request.AuthDingTalkV2WqylRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.zhyd.oauth.cache.AuthStateCache;
@@ -99,6 +101,11 @@ public class AuthRequestFactory {
         // 获取 JustAuth 中已存在的
         AuthRequest authRequest = getDefaultRequest(source);
 
+        // 获取 自定义 中已存在的
+        if (authRequest == null) {
+            authRequest = getCustomRequest(source);
+        }
+
         // 如果获取不到则尝试取自定义的
         if (authRequest == null) {
             authRequest = getExtendRequest(properties.getExtend().getEnumClass(), source);
@@ -151,6 +158,36 @@ public class AuthRequestFactory {
         return null;
     }
 
+    /**
+     * 获取 自定义的 Request
+     * @param source
+     * @return
+     */
+    private AuthRequest getCustomRequest(String source) {
+        AuthCustomSource authCustomSource;
+
+        try {
+            authCustomSource = EnumUtil.fromString(AuthCustomSource.class, source.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            // 无自定义匹配
+            return null;
+        }
+
+        AuthConfig config = properties.getType().get(authCustomSource.name());
+        // 找不到对应关系，直接返回空
+        if (config == null) {
+            return null;
+        }
+
+        // 配置 http config
+        configureHttpConfig(authCustomSource.name(), config, properties.getHttpConfig());
+
+        switch (authCustomSource) {
+            case DINGTALK_V2_WQYL:
+                return new AuthDingTalkV2WqylRequest(config, authStateCache);
+        }
+        return null;
+    }
 
     /**
      * 获取默认的 Request
